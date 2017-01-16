@@ -206,6 +206,7 @@ flushSSD(SSDDesc * ssd_hdr)
 		}
 		for (i = ssd_strategy_control->first_usedssd; i < ssd_strategy_control->first_usedssd + ssd_strategy_control->n_usedssd; i++) {
 			if (ssd_descriptors[i % NSSDs].ssd_flag & SSD_VALID && GetSMRBandNumFromSSD((&ssd_descriptors[i % NSSDs])->ssd_tag.offset) == BandNum) {
+                ssd_descriptors[i % NSSDs].ssd_flag = 0;
 				Offset = GetSMROffsetInBandFromSSD(&ssd_descriptors[i % NSSDs]);
 				returnCode = pread(inner_ssd_fd, band + Offset * BLCKSZ, BLCKSZ, ssd_descriptors[i % NSSDs].ssd_id * BLCKSZ);
 				if (returnCode < 0) {
@@ -277,10 +278,10 @@ GetSMROffsetInBandFromSSD(SSDDesc * ssd_hdr)
 	for (i = 0; i < band_size_num; i++) {
 		size = BNDSZ / 2 + i * 1024 * 1024;
 		if (total_size + size * num_each_size > offset)
-			return (offset - (offset - total_size) / size * size) / BLCKSZ;
+			return (offset - total_size - (offset - total_size) / size * size) / BLCKSZ;
 		total_size += size * num_each_size;
 	}
 
-	return -1;
+	return 0;
 	//return (ssd_hdr->ssd_tag.offset / BLCKSZ) % (actual_band_size / BLCKSZ);
 }
