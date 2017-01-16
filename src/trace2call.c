@@ -38,8 +38,10 @@ void trace_to_iocall(char* trace_file_path) {
                 exit(-1);
         }
     while(!feof(trace)) {
-		fscanf(trace, "%lf %c %s %lu %f", &time, &action, write_or_read, &offset, &size_float);
-        //printf("original size : %f\n",size_float);
+ 	returnCode = fscanf(trace, "%c %d %lu\n", &action, &i, &offset);
+                if(returnCode < 0)
+                        break;
+	//printf("original size : %f\n",size_float);
 	gettimeofday(&tv_now, &tz_now);
         if (DEBUG)
           printf("[INFO] trace_to_iocall():--------now time = %lf\n", time_now-time_begin);
@@ -51,8 +53,8 @@ void trace_to_iocall(char* trace_file_path) {
 		} else {
 			is_first_call = 0;
 		}
-        size = size_float*1024;
-//	printf("size: %lu\n",size);
+        size = 4096;
+	offset = offset * BLCKSZ;
 	unsigned long offset_end = offset+size;
 	if(offset % 4096 != 0)
 		offset = offset/4096*4096;
@@ -64,14 +66,14 @@ void trace_to_iocall(char* trace_file_path) {
     	for (i=0; i<BLCKSZ; i++)
       		ssd_buffer[i] = '1';
 	while (size > 0 ) {
-        	if(strstr(write_or_read, "W")) {
-               	 if (DEBUG)
+               	if(action == '1'){ 
+			if (DEBUG)
        				printf("[INFO] trace_to_iocall():--------wirte offset=%lu\n", offset);
         		if(BandOrBlock == 0 )
 				write_block(offset, ssd_buffer);
 			else
 				write_band(offset,ssd_buffer);
-     		 } else if(strstr(write_or_read, "R")) {
+     		 } else if(action == '0') {
         /*       	if (DEBUG)
        			printf("[INFO] trace_to_iocall():--------read offset=%lu\n", offset);
         		if(BandOrBlock == 0 )

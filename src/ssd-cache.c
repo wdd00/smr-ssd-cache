@@ -41,13 +41,12 @@ initSSDBuffer()
 		ssd_buf_hdr->next_freessd = i + 1;
 	}
 	ssd_buffer_descriptors[NSSDBuffers - 1].next_freessd = -1;
-	//ssd_buffer_strategy_control->n_usedssd = 0;
 	hit_num = 0;
-	//miss_num = 0;
 	flush_ssd_blocks = 0;
-	//flush_fifo_times = 0;
+	flush_fifo_times = 0;
+	read_ssd_blocks = 0;
+	flush_ssd_zones = 0;
 
-	//initStrategySSDBuffer(EvictStrategy);
 }
 
 void           *
@@ -238,13 +237,18 @@ write_block(off_t offset, char *ssd_buffer)
 		printf("[INFO] write():-------offset=%lu\n", offset);
 	ssd_buf_hdr = SSDBufferAlloc(ssd_buf_tag, &found);
 	flush_ssd_blocks++;
-    if (flush_ssd_blocks % 10000 == 0)
-		printf("hit num:%lu   flush_ssd_blocks:%lu flush_fifo_times:%lu flush_fifo_blocks:%lu  flusd_bands:%lu\n ", hit_num, flush_ssd_blocks, flush_fifo_times, flush_fifo_blocks, flush_bands);
+//    if (flush_ssd_blocks % 10000 == 0)
+//		printf("hit num:%lu   flush_ssd_blocks:%lu flush_fifo_times:%lu flush_fifo_blocks:%lu  flusd_bands:%lu\n ", hit_num, flush_ssd_blocks, flush_fifo_times, flush_fifo_blocks, flush_bands);
 	returnCode = pwrite(ssd_fd, ssd_buffer, SSD_BUFFER_SIZE, ssd_buf_hdr->ssd_buf_id * SSD_BUFFER_SIZE);
 	if (returnCode < 0) {
 		printf("[ERROR] write():-------write to ssd: fd=%d, errorcode=%d, offset=%lu\n", ssd_fd, returnCode, offset);
 		exit(-1);
 	}
+	returnCode = fsync(ssd_fd);
+        if(returnCode < 0){
+        	printf("[ERROR] write_block():------------fsync\n");
+                exit(-1);
+        }
 	ssd_buf_hdr->ssd_buf_flag |= SSD_BUF_VALID | SSD_BUF_DIRTY;
 }
 void 

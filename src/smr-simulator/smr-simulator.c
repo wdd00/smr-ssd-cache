@@ -3,7 +3,7 @@
 #include <unistd.h>
 #include <pthread.h>
 #include <memory.h>
-
+#include "band_table_for_fifo.h"
 #include "ssd-cache.h"
 #include "smr-simulator.h"
 #include "inner_ssd_buf_table.h"
@@ -11,7 +11,7 @@
 static SSDDesc *getStrategySSD();
 static void    *freeStrategySSD();
 static volatile void *flushSSD(SSDDesc * ssd_hdr);
-
+off_t GetSMROffsetInBandFromSSD(SSDDesc *ssd_hdr);
 /*
  * init inner ssd buffer hash table, strategy_control, buffer, work_mem
  */
@@ -21,6 +21,7 @@ initSSD()
 	pthread_t	freessd_tid;
 	int		err;
 
+	initBandTableforfifo(NBANDTables);
 	initSSDTable(NSSDTables);
 
 	ssd_strategy_control = (SSDStrategyControl *) malloc(sizeof(SSDStrategyControl));
@@ -35,19 +36,25 @@ initSSD()
 	for (i = 0; i < NSSDs; ssd_hdr++, i++) {
 		ssd_hdr->ssd_flag = 0;
 		ssd_hdr->ssd_id = i;
-		//ssd_hdr->usage_count = 0;
-		//ssd_hdr->next_freessd = i + 1;
 	}
-	//ssd_descriptors[NSSDs - 1].next_freessd = -1;
+	
+	band_descriptors_for_fifo = (BandDescForFIFO *)malloc(sizeof(BandDescForFIFO)*NSMRBands);
+        BandDescForFIFO *band_hdr;
+        band_hdr = band_descriptors_for_fifo;
+        for(i = 0; i < NSMRBands; band_hdr++, i++) {
+                band_descriptors_for_fifo[i].band_num = -1;
+                band_descriptors_for_fifo[i].first_page = -1;
+                band_descriptors_for_fifo[i].next_free_band = i+1;
+        }
+        band_descriptors_for_fifo[i].next_free_band = -1;
+        band_control_for_fifo = (BandControlForFIFO *)malloc(sizeof(BandControlForFIFO));
+        band_control_for_fifo->first_freeband = 0;
+        band_control_for_fifo->last_freeband = NSSDBuffers - 1;
+        band_control_for_fifo->n_usedband = 0;
+
 	interval_time = 0;
 
-	//ssd_blocks = (char *)malloc(SSD_SIZE * NSSDs);
-	//printf("%d\n", sizeof(ssd_blocks));
-	//memset(ssd_blocks, 0, SSD_SIZE * NSSDs);
-
 	pthread_mutex_init(&free_ssd_mutex, NULL);
-	//pthread_mutex_init(&inner_ssd_hdr_mutex, NULL);
-	//pthread_mutex_init(&inner_ssd_table_mutex, NULL);
 
 	err = pthread_create(&freessd_tid, NULL, freeStrategySSD, NULL);
 	if (err != 0) {
@@ -55,6 +62,9 @@ initSSD()
 	}
 	flush_bands = 0;
 	flush_fifo_blocks = 0;
+	read_fifo_blocks = 0;
+        read_smr_blocks = 0;
+        read_smr_bands = 0;
 }
 
 int 
@@ -74,6 +84,7 @@ smrread(int smr_fd, char *buffer, size_t size, off_t offset)
 
 		if (ssd_id >= 0) {
 			ssd_hdr = &ssd_descriptors[ssd_id];
+			read_fifo_blocks++;
 			returnCode = pread(inner_ssd_fd, buffer, BLCKSZ, ssd_hdr->ssd_id * BLCKSZ);
 			if (returnCode < 0) {
 				printf("[ERROR] smrread():-------read from inner ssd: fd=%d, errorcode=%d, offset=%lu\n", inner_ssd_fd, returnCode, ssd_hdr->ssd_id * BLCKSZ);
@@ -81,6 +92,7 @@ smrread(int smr_fd, char *buffer, size_t size, off_t offset)
 			}
 			return returnCode;
 		} else {
+			read_smr_blocks++;
 			returnCode = pread(smr_fd, buffer, BLCKSZ, offset + i * BLCKSZ);
 			if (returnCode < 0) {
 				printf("[ERROR] smrread():-------read from smr disk: fd=%d, errorcode=%d, offset=%lu\n", inner_ssd_fd, returnCode, offset + i * BLCKSZ);
@@ -111,7 +123,25 @@ smrwrite(int smr_fd, char *buffer, size_t size, off_t offset)
 		} else {
 			ssd_hdr = getStrategySSD();
 			//releaselock
-				pthread_mutex_unlock(&free_ssd_mutex);
+			pthread_mutex_unlock(&free_ssd_mutex);
+			long band_num = GetSMRBandNumFromSSD(ssd_tag.offset);
+                        unsigned long band_hash = bandtableHashcodeforfifo(band_num);
+                        long band_id = bandtableLookupforfifo(band_num,band_hash);
+                        SSDDesc *temp_ssd_hdr;
+                        if(band_id >= 0){
+                                long first_page = band_descriptors_for_fifo[band_id].first_page;
+                                temp_ssd_hdr = &ssd_descriptors[first_page];
+                                ssd_hdr->next_ssd_buf = temp_ssd_hdr->next_ssd_buf;
+                                temp_ssd_hdr->next_ssd_buf = ssd_hdr->ssd_id;
+                        } else {
+                                long first_freeband = band_control_for_fifo->first_freeband;
+                                bandtableInsertforfifo(band_num, band_hash, first_freeband);
+                                band_control_for_fifo->first_freeband = band_descriptors_for_fifo[first_freeband].next_free_band;
+                                band_descriptors_for_fifo[first_freeband].band_num = band_num;
+                                band_descriptors_for_fifo[first_freeband].first_page = ssd_hdr->ssd_id;
+                                band_descriptors_for_fifo[first_freeband].next_free_band = -1;
+                                ssd_hdr->next_ssd_buf = -1;
+                        }
 		}
 
 		ssdtableInsert(&ssd_tag, ssd_hash, ssd_hdr->ssd_id);
@@ -123,6 +153,11 @@ smrwrite(int smr_fd, char *buffer, size_t size, off_t offset)
 			printf("[ERROR] smrwrite():-------write to smr disk: fd=%d, errorcode=%d, offset=%lu\n", inner_ssd_fd, returnCode, offset + i * BLCKSZ);
 			exit(-1);
 		}
+		returnCode = fsync(inner_ssd_fd);
+                if(returnCode < 0){
+                        printf("[ERROR] smrwrite():--------fsync\n");
+                        exit(-1);
+                }
 	}
 
 }
@@ -180,58 +215,57 @@ static volatile void *
 flushSSD(SSDDesc * ssd_hdr)
 {
 	long		i;
-	unsigned long	actual_band_size;
 	int		returnCode;
-	char		buffer    [BLCKSZ];
 	char           *band;
 	unsigned long	BandNum = GetSMRBandNumFromSSD(ssd_hdr->ssd_tag.offset);
 	off_t		Offset;
-
-	actual_band_size = GetSMRActualBandSizeFromSSD(ssd_hdr->ssd_tag.offset);
-	returnCode = posix_memalign(&band, 512, sizeof(char) * actual_band_size);
+	Offset = GetSMROffsetInBandFromSSD(ssd_hdr);
+	unsigned long size = GetSMRActualBandSizeFromSSD(ssd_hdr->ssd_tag.offset);
+	returnCode = posix_memalign(&band, 512, sizeof(char) * size);
 	if (returnCode < 0) {
 		printf("[ERROR] flushSSD():-------posix_memalign\n");
 		exit(-1);
 	}
-	if (BandOrBlock == 0) {
-		returnCode = pread(smr_fd, band, BNDSZ, BandNum * BNDSZ);
+        read_smr_bands++;
+	returnCode = pread(smr_fd, band, size, ssd_hdr->ssd_tag.offset - Offset * BLCKSZ);
 		if (returnCode < 0) {
-			printf("[ERROR] flushSSD():---------read from smr: fd=%d, errorcode=%d, offset=%lu\n", smr_fd, returnCode, BandNum * actual_band_size);
+			printf("[ERROR] flushSSD():---------read from smr: fd=%d, errorcode=%d, offset=%lu\n", smr_fd, returnCode, BandNum * size);
 			exit(-1);
 		}
-		returnCode = pread(inner_ssd_fd, band + GetSMROffsetInBandFromSSD(ssd_hdr) * BLCKSZ, BLCKSZ, ssd_hdr->ssd_id * BLCKSZ);
-		if (returnCode < 0) {
-			printf("[ERROR] flushSSD():-------read from inner ssd: fd=%d, errorcode=%d, offset=%lu\n", inner_ssd_fd, returnCode, ssd_hdr->ssd_id * BLCKSZ);
-			exit(-1);
-		}
-		for (i = ssd_strategy_control->first_usedssd; i < ssd_strategy_control->first_usedssd + ssd_strategy_control->n_usedssd; i++) {
-			if (ssd_descriptors[i % NSSDs].ssd_flag & SSD_VALID && GetSMRBandNumFromSSD((&ssd_descriptors[i % NSSDs])->ssd_tag.offset) == BandNum) {
-                ssd_descriptors[i % NSSDs].ssd_flag = 0;
-				Offset = GetSMROffsetInBandFromSSD(&ssd_descriptors[i % NSSDs]);
-				returnCode = pread(inner_ssd_fd, band + Offset * BLCKSZ, BLCKSZ, ssd_descriptors[i % NSSDs].ssd_id * BLCKSZ);
-				if (returnCode < 0) {
-					printf("[ERROR] flushSSD():-------read from inner ssd: fd=%d, errorcode=%d, offset=%lu\n", inner_ssd_fd, returnCode, ssd_descriptors[i % NSSDs].ssd_id * BLCKSZ);
-					exit(-1);
-				}
-				long		tmp_hash = ssdtableHashcode(&ssd_descriptors[i % NSSDs].ssd_tag);
-				long		tmp_id = ssdtableLookup(&ssd_descriptors[i % NSSDs].ssd_tag, tmp_hash);
-				ssdtableDelete(&ssd_descriptors[i % NSSDs].ssd_tag, ssdtableHashcode(&ssd_descriptors[i % NSSDs].ssd_tag));
-				ssd_descriptors[i % NSSDs].ssd_flag = 0;
-			}
-		}
-	} else {
-		returnCode = pread(inner_ssd_fd, band, BNDSZ, ssd_hdr->ssd_id * BNDSZ);
-		if (returnCode < 0) {
-			printf("[ERROR] flushSSD():-------pread: fd=%d, errorcode=%d, offset=%lu\n", inner_ssd_fd, returnCode, BandNum * actual_band_size);
-			exit(-1);
-		}
-	}
-	flush_bands++;
-	returnCode = pwrite(smr_fd, band, BNDSZ, BandNum * BNDSZ);
+	unsigned long band_hash = bandtableHashcodeforfifo(BandNum);
+        long band_id = bandtableLookupforfifo(BandNum, band_hash);
+        long first_page = band_descriptors_for_fifo[band_id].first_page;
+        while(first_page >= 0) {
+
+                Offset = GetSMROffsetInBandFromSSD(&ssd_descriptors[first_page]);
+                read_fifo_blocks++;
+              returnCode = pread(inner_ssd_fd, band+Offset*BLCKSZ, BLCKSZ, ssd_descriptors[i%NSSDs].ssd_id * BLCKSZ);
+                if(returnCode < 0) {
+                        printf("[ERROR] flushSSD():-------read from inner ssd: fd=%d, errorcode=%d, offset=%lu\n", inner_ssd_fd, returnCode, ssd_descriptors[i%NSSDs].ssd_id * BLCKSZ);
+                        exit(-1);
+                }
+                ssdtableDelete(&ssd_descriptors[first_page].ssd_tag, ssdtableHashcode(&ssd_descriptors[first_page].ssd_tag));
+                ssd_descriptors[first_page].ssd_flag = 0;
+                first_page = ssd_descriptors[first_page].next_ssd_buf;
+                //ssd_strategy_control->n_usedssd--;
+        }
+	bandtableDeleteforfifo(BandNum, band_hash);
+        band_descriptors_for_fifo[band_id].next_free_band = band_control_for_fifo->first_freeband;
+        band_control_for_fifo->first_freeband = band_id;
+
+        flush_bands++;
+        Offset = GetSMROffsetInBandFromSSD(ssd_hdr);
+		
+	returnCode = pwrite(smr_fd, band, size, ssd_hdr->ssd_tag.offset - Offset * BLCKSZ);
 	if (returnCode < 0) {
-		printf("[ERROR] flushSSD():-------write to smr: fd=%d, errorcode=%d, offset=%lu\n", inner_ssd_fd, returnCode, BandNum * actual_band_size);
+		printf("[ERROR] flushSSD():-------write to smr: fd=%d, errorcode=%d, offset=%lu\n", inner_ssd_fd, returnCode, BandNum * size);
 		exit(-1);
 	}
+	returnCode = fsync(smr_fd);
+        if(returnCode < 0) {
+                printf("[ERROR] flushSSD():------------fsync\n");
+                exit(-1);
+        }
 	free(band);
 }
 

@@ -16,7 +16,7 @@ typedef struct
         long       ssd_id;			// ssd buffer location 
         unsigned   ssd_flag;
 //	long		usage_count;
-//	long		next_freessd;
+	long		next_ssd_buf;
 } SSDDesc;
 
 #define SSD_VALID 0x01
@@ -36,17 +36,45 @@ typedef struct
 	long		last_usedssd;		// Tail of list of used ssds
 } SSDStrategyControl;
 
+typedef struct BandDescForFIFO
+{
+        long band_num;
+        long first_page;
+        long next_free_band;
+} BandDescForFIFO;
+
+typedef struct BandHashBucketForFIFO
+{
+        long band_num;
+        long band_id;
+        struct BandHashBucketForFIFO *next_item;
+} BandHashBucketForFIFO;
+
+typedef struct BandControlForFIFO
+{
+        long first_freeband;
+        long last_freeband;
+        long n_usedband;
+} BandControlForFIFO;
+
 extern unsigned long flush_bands;
 extern unsigned long flush_fifo_blocks;
+extern unsigned long read_fifo_blocks;
+extern unsigned long read_smr_blocks;
+extern unsigned long read_smr_bands;
 //extern unsigned long write-fifo-num;
 
 extern SSDDesc		*ssd_descriptors;
 extern char             *ssd_blocks;
 extern SSDStrategyControl *ssd_strategy_control;
 extern SSDHashBucket	*ssd_hashtable;
+BandHashBucketForFIFO *band_hashtable_for_fifo;
+BandControlForFIFO *band_control_for_fifo;
+BandDescForFIFO *band_descriptors_for_fifo;
 
 //#define GetSSDblockFromId(ssd_id) ((void *) (ssd_blocks + ((long) (ssd_id)) * SSD_SIZE))
 #define GetSSDHashBucket(hash_code) ((SSDHashBucket *) (ssd_hashtable + (unsigned long) (hash_code)))
+#define GetBandHashBucketforfifo(hash_code) ((BandHashBucketForFIFO *)(band_hashtable_for_fifo +(unsigned long)(hash_code)))
 
 extern unsigned long GetSMRActualBandSizeFromSSD(unsigned long offset);
 extern unsigned long GetSMRBandNumFromSSD(unsigned long offset);

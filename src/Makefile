@@ -8,7 +8,7 @@ CFLAGS += -Wall -pthread
 CPPFLAGS += -I$(SMR_SSD_CACHE_DIR) -I$(SMR_SSD_CACHE_DIR)/smr-simulator -I$(SMR_SSD_CACHE_DIR)/strategy
 
 RM = rm -rf
-OBJS = global.o ssd_buf_table.o ssd-cache.o inner_ssd_buf_table.o smr-simulator.o trace2call.o main.o clock.o lru.o scan.o lruofband.o band_table.o most.o WA.o ssd_buf_table_for_coldmax_history.o maxcold.o
+OBJS = global.o ssd_buf_table.o ssd-cache.o inner_ssd_buf_table.o band_table_for_fifo.o smr-simulator.o trace2call.o main.o clock.o lru.o scan.o lruofband.o band_table.o most.o WA.o ssd_buf_table_for_coldmax_history.o maxcold.o
 
 all: $(OBJS) smr-ssd-cache
 	@echo 'Successfully built smr-ssd-cache...'
@@ -29,6 +29,9 @@ inner_ssd_buf_table.o: smr-simulator/inner_ssd_buf_table.c
 	$(CC) $(CPPFLAGS) $(CFLAGS) -c $?
 
 smr-simulator.o: smr-simulator/smr-simulator.c
+	$(CC) $(CPPFLAGS) $(CFLAGS) -c $?
+
+band_table_for_fifo.o: smr-simulator/band_table_for_fifo.c
 	$(CC) $(CPPFLAGS) $(CFLAGS) -c $?
 
 trace2call.o: trace2call.c

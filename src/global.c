@@ -2,9 +2,10 @@
 #include "smr-simulator/smr-simulator.h"
 #include "main.h"
 
-int BandOrBlock = 1;
+int BandOrBlock = 0;
 /* Block = 0,Band =1*/
 
+<<<<<<< Updated upstream
 unsigned long NSSDBuffers = 3560*5;
 unsigned long NSSDBufTables = 3560*5;
 unsigned long SSD_BUFFER_SIZE = 4096;
@@ -16,6 +17,7 @@ unsigned long NBANDTables = 2621952;
 size_t SSD_SIZE = 4096;
 size_t BLCKSZ = 4096;
 size_t BNDSZ = 36*1024*1024;
+<<<<<<< Updated upstream
 size_t ZONESZ = 20*1024*1024;
 unsigned long INTERVALTIMELIMIT = 100000000;
 unsigned long NSSDLIMIT = 3560;
@@ -28,8 +30,8 @@ char ssd_device[] = "/Users/wangchunling/Software/code/smr-test/smr-ssd-cache/sr
 char inner_ssd_device[] = "/Users/wangchunling/Software/code/smr-test/smr-ssd-cache/src/inner_ssd";
 //SSDEvictionStrategy EvictStrategy = CLOCK;
 //SSDEvictionStrategy EvictStrategy = LRUofBand;
-SSDEvictionStrategy EvictStrategy = Most;
-//SSDEvictionStrategy EvictStrategy = LRU;
+//SSDEvictionStrategy EvictStrategy = Most;
+SSDEvictionStrategy EvictStrategy = LRU;
 //SSDEvictionStrategy EvictStrategy = SCAN;
 //SSDEvictionStrategy EvictStrategy = WA;
 SSDEvictionStrategy EvictStrategy = MaxCold;
@@ -43,10 +45,16 @@ unsigned long hit_num;
 unsigned long flush_bands;
 unsigned long flush_fifo_blocks;
 unsigned long flush_ssd_blocks;
+unsigned long read_ssd_blocks;
 //unsigned long write-fifo-num;
 //unsigned long write-ssd-num;
 unsigned long flush_fifo_times;
 unsigned long run_times;
+unsigned long read_fifo_blocks;
+unsigned long read_smr_blocks;
+unsigned long read_smr_bands;
+unsigned long fifo_clean_num;
+unsigned long flush_ssd_zones;
 
 pthread_mutex_t free_ssd_mutex;
 pthread_mutex_t inner_ssd_hdr_mutex;
