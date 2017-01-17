@@ -5,7 +5,6 @@
 int BandOrBlock = 0;
 /* Block = 0,Band =1*/
 
-<<<<<<< Updated upstream
 unsigned long NSSDBuffers = 3560*5;
 unsigned long NSSDBufTables = 3560*5;
 unsigned long SSD_BUFFER_SIZE = 4096;
@@ -17,7 +16,6 @@ unsigned long NBANDTables = 2621952;
 size_t SSD_SIZE = 4096;
 size_t BLCKSZ = 4096;
 size_t BNDSZ = 36*1024*1024;
-<<<<<<< Updated upstream
 size_t ZONESZ = 20*1024*1024;
 unsigned long INTERVALTIMELIMIT = 100000000;
 unsigned long NSSDLIMIT = 3560;
@@ -31,10 +29,11 @@ char inner_ssd_device[] = "/Users/wangchunling/Software/code/smr-test/smr-ssd-ca
 //SSDEvictionStrategy EvictStrategy = CLOCK;
 //SSDEvictionStrategy EvictStrategy = LRUofBand;
 //SSDEvictionStrategy EvictStrategy = Most;
-SSDEvictionStrategy EvictStrategy = LRU;
+//SSDEvictionStrategy EvictStrategy = LRU;
+SSDEvictionStrategy EvictStrategy = CMR;
 //SSDEvictionStrategy EvictStrategy = SCAN;
 //SSDEvictionStrategy EvictStrategy = WA;
-SSDEvictionStrategy EvictStrategy = MaxCold;
+//SSDEvictionStrategy EvictStrategy = MaxCold;
 //int BandOrBlock = 0;
 /*Block = 0, Band=1*/
 int 		    smr_fd;
