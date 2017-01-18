@@ -87,7 +87,7 @@ void trace_to_iocall(char* trace_file_path) {
     	gettimeofday(&tv_now, &tz_now);
     	time_now = tv_now.tv_sec + tv_now.tv_usec/1000000.0;
     	printf("total run time (s) = %lf\n", time_now - time_begin);
-	printf("hit num:%lu   flush_ssd_blocks:%lu flush_fifo_times:%lu flush_fifo_blocks:%lu  flush_bands:%lu flush_band_size=%lu\n ",hit_num,flush_ssd_blocks,flush_fifo_times,flush_fifo_blocks,flush_bands, flush_band_size);
+	printf("hit num:%lu  read_ssd_blocks:%lu  flush_ssd_blocks:%lu flush_fifo_times:%lu flush_fifo_blocks:%lu read_fifo_blocks:%lu read_smr_blocks:%lu read_smr_bands:%lu  flush_bands:%lu\n ",hit_num,read_ssd_blocks,flush_ssd_blocks,flush_fifo_times,flush_fifo_blocks,read_fifo_blocks,read_smr_blocks,read_smr_bands,flush_bands);
 	fclose(trace);
 	
 }

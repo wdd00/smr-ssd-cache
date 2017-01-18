@@ -56,6 +56,9 @@ initSSD()
 	flush_bands = 0;
 	flush_band_size = 0;
 	flush_fifo_blocks = 0;
+	read_fifo_blocks = 0;
+	read_smr_blocks = 0;
+	read_smr_bands;
 }
 
 int 
@@ -75,19 +78,21 @@ smrread(int smr_fd, char *buffer, size_t size, off_t offset)
 
 		if (ssd_id >= 0) {
 			ssd_hdr = &ssd_descriptors[ssd_id];
-			returnCode = pread(inner_ssd_fd, buffer, BLCKSZ, ssd_hdr->ssd_id * BLCKSZ);
+			read_fifo_blocks++;
+/*			returnCode = pread(inner_ssd_fd, buffer, BLCKSZ, ssd_hdr->ssd_id * BLCKSZ);
 			if (returnCode < 0) {
 				printf("[ERROR] smrread():-------read from inner ssd: fd=%d, errorcode=%d, offset=%lu\n", inner_ssd_fd, returnCode, ssd_hdr->ssd_id * BLCKSZ);
 				exit(-1);
 			}
-			return returnCode;
+*/			return returnCode;
 		} else {
-			returnCode = pread(smr_fd, buffer, BLCKSZ, offset + i * BLCKSZ);
+			read_smr_blocks++;
+/*			returnCode = pread(smr_fd, buffer, BLCKSZ, offset + i * BLCKSZ);
 			if (returnCode < 0) {
 				printf("[ERROR] smrread():-------read from smr disk: fd=%d, errorcode=%d, offset=%lu\n", inner_ssd_fd, returnCode, offset + i * BLCKSZ);
 				exit(-1);
 			}
-		}
+*/		}
 	}
 
 	return 0;
@@ -119,12 +124,12 @@ smrwrite(int smr_fd, char *buffer, size_t size, off_t offset)
 		ssd_hdr->ssd_flag |= SSD_VALID | SSD_DIRTY;
 		ssd_hdr->ssd_tag = ssd_tag;
 		flush_fifo_blocks++;
-		returnCode = pwrite(inner_ssd_fd, buffer, BLCKSZ, ssd_hdr->ssd_id * BLCKSZ);
+/*		returnCode = pwrite(inner_ssd_fd, buffer, BLCKSZ, ssd_hdr->ssd_id * BLCKSZ);
 		if (returnCode < 0) {
 			printf("[ERROR] smrwrite():-------write to smr disk: fd=%d, errorcode=%d, offset=%lu\n", inner_ssd_fd, returnCode, offset + i * BLCKSZ);
 			exit(-1);
 		}
-	}
+*/	}
 
 }
 
@@ -188,42 +193,42 @@ flushSSD(SSDDesc * ssd_hdr)
 	unsigned long	BandNum = GetSMRBandNumFromSSD(ssd_hdr->ssd_tag.offset);
 	off_t		Offset;
 
-	long		band_size = GetSMRActualBandSizeFromSSD(ssd_hdr->ssd_tag.offset);
-	off_t		band_offset = ssd_hdr->ssd_tag.offset - GetSMROffsetInBandFromSSD(ssd_hdr);
-	returnCode = posix_memalign(&band, 512, sizeof(char) * band_size);
+	actual_band_size = GetSMRActualBandSizeFromSSD(ssd_hdr->ssd_tag.offset);
+	Offset = GetSMROffsetInBandFromSSD(ssd_hdr);
+	returnCode = posix_memalign(&band, 512, sizeof(char) * actual_band_size);
 	if (returnCode < 0) {
 		printf("[ERROR] flushSSD():-------posix_memalign\n");
 		exit(-1);
 	}
 
-	/* read whole band from smr */
-	returnCode = pread(smr_fd, band, band_size, band_offset);
+	read_smr_bands++;
+/*	returnCode = pread(smr_fd, band, actual_band_size, ssd_hdr->ssd_tag.offset - Offset * BLCKSZ);
 	if (returnCode < 0) {
-		printf("[ERROR] flushSSD():---------read from smr: fd=%d, errorcode=%d, offset=%lu\n", smr_fd, returnCode, band_offset);
+		printf("[ERROR] flushSSD():---------read from smr: fd=%d, errorcode=%d, offset=%lu\n", smr_fd, returnCode, BandNum * actual_band_size);
 		exit(-1);
 	}
-	/* read cached pages from FIFO */
-	for (i = ssd_strategy_control->first_usedssd; i < ssd_strategy_control->first_usedssd + ssd_strategy_control->n_usedssd; i++) {
+*/	for (i = ssd_strategy_control->first_usedssd; i < ssd_strategy_control->first_usedssd + ssd_strategy_control->n_usedssd; i++) {
 		if (ssd_descriptors[i % NSSDs].ssd_flag & SSD_VALID && GetSMRBandNumFromSSD((&ssd_descriptors[i % NSSDs])->ssd_tag.offset) == BandNum) {
-			ssd_descriptors[i % NSSDs].ssd_flag = 0;
+        		ssd_descriptors[i % NSSDs].ssd_flag = 0;
 			Offset = GetSMROffsetInBandFromSSD(&ssd_descriptors[i % NSSDs]);
-			returnCode = pread(inner_ssd_fd, band + Offset * BLCKSZ, BLCKSZ, ssd_descriptors[i % NSSDs].ssd_id * BLCKSZ);
+			read_fifo_blocks++;	
+/*			returnCode = pread(inner_ssd_fd, band + Offset * BLCKSZ, BLCKSZ, ssd_descriptors[i % NSSDs].ssd_id * BLCKSZ);
 			if (returnCode < 0) {
 				printf("[ERROR] flushSSD():-------read from inner ssd: fd=%d, errorcode=%d, offset=%lu\n", inner_ssd_fd, returnCode, ssd_descriptors[i % NSSDs].ssd_id * BLCKSZ);
 				exit(-1);
 			}
+*/			long		tmp_hash = ssdtableHashcode(&ssd_descriptors[i % NSSDs].ssd_tag);
+			long		tmp_id = ssdtableLookup(&ssd_descriptors[i % NSSDs].ssd_tag, tmp_hash);
+			ssdtableDelete(&ssd_descriptors[i % NSSDs].ssd_tag, ssdtableHashcode(&ssd_descriptors[i % NSSDs].ssd_tag));
 		}
 	}
-
-	/* write whole band to smr */
 	flush_bands++;
-	flush_band_size += band_size;
-	returnCode = pwrite(smr_fd, band, band_size, band_offset);
+/*	returnCode = pwrite(smr_fd, band, actual_band_size, ssd_hdr->ssd_tag.offset - Offset * BLCKSZ);
 	if (returnCode < 0) {
 		printf("[ERROR] flushSSD():-------write to smr: fd=%d, errorcode=%d, offset=%lu\n", inner_ssd_fd, returnCode, band_offset);
 		exit(-1);
 	}
-	free(band);
+*/	free(band);
 }
 
 unsigned long 

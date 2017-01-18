@@ -44,6 +44,8 @@ typedef enum
 	Most,
 	Most_Dirty,	
 	SCAN,
+	SMR,
+	CMR,
     WA,
     MaxCold
 } SSDEvictionStrategy;
@@ -55,6 +57,7 @@ extern SSDBufferHashBucket	*ssd_buffer_hashtable;
 extern SSDBufferStrategyControl *ssd_buffer_strategy_control;
 extern unsigned long hit_num;
 extern unsigned long flush_ssd_blocks;
+extern unsigned long read_ssd_blocks;
 //extern unsigned long write-ssd-num;
 //extern unsigned long flush_fifo_times;
 
