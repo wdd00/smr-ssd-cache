@@ -30,6 +30,7 @@ trace_to_iocall(char *trace_file_path)
 	bool		is_first_call = 1;
 	int		i;
 	float		size_float;
+	char *zone_buffer;
 
 	gettimeofday(&tv_begin, &tz_begin);
 	time_begin = tv_begin.tv_sec + tv_begin.tv_usec / 1000000.0;
@@ -39,6 +40,13 @@ trace_to_iocall(char *trace_file_path)
 		free(ssd_buffer);
 		exit(-1);
 	}
+	if(BandOrBlock == 1){
+                returnCode = posix_memalign(&zone_buffer,512,sizeof(char)*ZONESZ);
+                if(returnCode < 0){
+                        printf("[ERROR] flushSSDBuffer():--------posix memalign\n");
+                        exit(-1);
+                }
+        }
 	while (!feof(trace)) {
 		returnCode = fscanf(trace, "%c %d %lu\n", &action, &i, &offset);
 		if (returnCode < 0)
@@ -73,14 +81,14 @@ trace_to_iocall(char *trace_file_path)
 				if (BandOrBlock == 0)
 					write_block(offset, ssd_buffer);
 				else
-					write_band(offset, ssd_buffer);
+					write_band(offset, ssd_buffer, zone_buffer);
 			} else if (action == '0') {
 				if (DEBUG)
 					printf("[INFO] trace_to_iocall():--------read offset=%lu\n", offset);
 				//if (BandOrBlock == 0)
 				//	read_block(offset, ssd_buffer);
 				//else
-				//	read_band(offset, ssd_buffer);
+				//	read_band(offset, ssd_buffer, zone_buffer);
 			}
 			offset += BLCKSZ;
 			size -= BLCKSZ;

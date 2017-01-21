@@ -27,8 +27,9 @@ main(int argc, char **argv)
                                          "../trace/stg_0.csv.req", 
                                          "../trace/ts_0.csv.req", 
                                          "../trace/usr_0.csv.req", 
-                                         "../trace/wdev_0.csv.req", 
-                                         "../trace/web_0.csv.req"};
+                                         "/home/trace/MS-Cambridge/wdev_0.csv.req", 
+                                         "../trace/web_0.csv.req",
+						"/home/test.txt"};
 
 	if (argc == 8) {
 		NSSDBuffers = atoi(argv[1]);

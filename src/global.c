@@ -36,6 +36,7 @@ unsigned long flush_bands;
 unsigned long flush_band_size;
 unsigned long flush_fifo_blocks;
 unsigned long flush_ssd_blocks;
+unsigned long flush_ssd_zones;
 //unsigned long write-fifo-num;
 //unsigned long write-ssd-num;
 unsigned long flush_fifo_times;

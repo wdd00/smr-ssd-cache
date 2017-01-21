@@ -48,7 +48,7 @@ typedef struct
     unsigned char ischosen;
 } BandDescForMaxColdNow;
 
-extern size_t   ZONESZ;
+//extern size_t   ZONESZ;
 extern unsigned long NBANDTables;
 extern unsigned long NSMRBands;
 extern unsigned long PERIODTIMES;
